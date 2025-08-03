@@ -217,6 +217,7 @@
         }
         
         .practice-complete-screen {
+            display: none;
             text-align: center;
             padding: 40px;
         }
@@ -253,14 +254,42 @@
             margin-bottom: 10px;
             font-style: italic;
         }
+        
+        .loading-screen {
+            display: none;
+            text-align: center;
+            padding: 60px;
+        }
+        
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>英単語リスニングテスト</h1>
         
+        <!-- ローディング画面 -->
+        <div class="loading-screen" id="loadingScreen">
+            <h2>データを読み込んでいます...</h2>
+            <div class="spinner"></div>
+            <p>しばらくお待ちください</p>
+        </div>
+        
         <!-- スタート画面 -->
-        <div class="start-screen" id="startScreen">
+        <div class="start-screen" id="startScreen" style="display: none;">
             <h2>英単語リスニングテストへようこそ</h2>
             <div class="instructions">
                 <h3>テストの流れ</h3>
@@ -276,7 +305,7 @@
         </div>
         
         <!-- 練習終了画面 -->
-        <div class="practice-complete-screen" id="practiceCompleteScreen" style="display: none;">
+        <div class="practice-complete-screen" id="practiceCompleteScreen">
             <h2>練習問題が終了しました</h2>
             <div class="practice-result">
                 <p>練習問題の結果: <span id="practiceScore">0</span> / 3 問正解</p>
@@ -323,9 +352,17 @@
             <p>正答率: <span id="percentage">0</span>%</p>
             <button class="restart-button" onclick="restartTest()">もう一度挑戦</button>
         </div>
+        
+        <!-- エラー画面 -->
+        <div class="error-message" id="errorMessage" style="display: none;">
+            <h2>エラーが発生しました</h2>
+            <p id="errorText"></p>
+            <p>ページを更新してやり直してください。</p>
+        </div>
     </div>
     
     <!-- JavaScriptファイルの読み込み -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="script.js"></script>
 </body>
 </html>

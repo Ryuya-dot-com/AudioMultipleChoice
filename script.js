@@ -1,87 +1,142 @@
-// テストデータ（実際のデータに置き換えてください）
-const testData = [
-    {
-        audio: "stimuli/101S1F01.wav",
-        choices: ["感謝する", "主張する", "卒業する", "勉強する"],
-        correct: 0,
-        targetWord: "appreciate"
-    },
-    {
-        audio: "stimuli/102S1F01.wav",
-        choices: ["幹部", "建築", "執行", "学校"],
-        correct: 0,
-        targetWord: "executive"
-    },
-    {
-        audio: "stimuli/103S1F01.wav",
-        choices: ["歓迎会", "保険", "旅行", "製造業"],
-        correct: 0,
-        targetWord: "reception"
-    },
-    {
-        audio: "stimuli/104S1F01.wav",
-        choices: ["契約", "遠足", "軽食", "証明書"],
-        correct: 2,
-        targetWord: "refreshment"
-    },
-    {
-        audio: "stimuli/105S1F01.wav",
-        choices: ["比較する", "出現する", "要求する", "評価する"],
-        correct: 2,
-        targetWord: "require"
-    }
-    // ... 残りの75問のデータを追加
-    // 実際の実装では、Excelファイルのデータを変換して使用してください
-];
-
 // グローバル変数
+let testData = [];
+let practiceData = [];
 let currentQuestion = 0;
 let score = 0;
+let practiceScore = 0;
 let audioPlayed = false;
 let selectedAnswer = null;
 let currentAudio = null;
 let testStartTime = null;
 let questionStartTime = null;
 let testResults = [];
+let isPractice = true;
+let currentData = [];
 
-// 練習問題用のデータ（必要に応じて追加）
-const practiceData = [
-    {
-        audio: "practice_stimuli/Practice01F01.wav",
-        choices: ["勉強する", "補足する", "配管工", "ネコ"],
-        correct: 0,
-        targetWord: "study"
-    },
-    {
-        audio: "practice_stimuli/Practice02F01.wav",
-        choices: ["コーヒー", "邪悪", "授業料", "警告"],
-        correct: 0,
-        targetWord: "coffee"
-    },
-    {
-        audio: "practice_stimuli/Practice03F01.wav",
-        choices: ["陶器", "部長", "配管工", "ネコ"],
-        correct: 3,
-        targetWord: "cat"
+// ページ読み込み時にExcelファイルを読み込む
+document.addEventListener('DOMContentLoaded', async function() {
+    try {
+        document.getElementById('loadingScreen').style.display = 'block';
+        await loadExcelData();
+        document.getElementById('loadingScreen').style.display = 'none';
+        document.getElementById('startScreen').style.display = 'block';
+    } catch (error) {
+        showError('データの読み込みに失敗しました: ' + error.message);
     }
-];
+});
 
-// テスト開始
-function startTest() {
+// Excelファイルの読み込み
+async function loadExcelData() {
+    try {
+        const response = await fetch('multiplechoice stimuli list.xlsx');
+        if (!response.ok) {
+            throw new Error('Excelファイルが見つかりません');
+        }
+        
+        const arrayBuffer = await response.arrayBuffer();
+        const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        const data = XLSX.utils.sheet_to_json(worksheet);
+        
+        // データを練習問題と本番問題に分ける
+        practiceData = [];
+        testData = [];
+        
+        data.forEach(row => {
+            if (!row.display || !row.stimuli) return;
+            
+            const choices = [
+                row.responseA,
+                row.responseB,
+                row.responseC,
+                row.responseD
+            ];
+            
+            // 正解のインデックスを見つける
+            let correctIndex = -1;
+            for (let i = 0; i < choices.length; i++) {
+                if (choices[i] === row.ANSWER) {
+                    correctIndex = i;
+                    break;
+                }
+            }
+            
+            const questionData = {
+                audio: row.display.startsWith('Practice') 
+                    ? `practice_stimuli/${row.stimuli}`
+                    : `stimuli/${row.stimuli}`,
+                choices: choices,
+                correct: correctIndex,
+                targetWord: row.targetword
+            };
+            
+            if (row.display.startsWith('Practice')) {
+                practiceData.push(questionData);
+            } else if (row.display === 'Trial') {
+                testData.push(questionData);
+            }
+        });
+        
+        console.log(`データ読み込み完了: 練習問題 ${practiceData.length}問, 本番問題 ${testData.length}問`);
+        
+        if (practiceData.length === 0 || testData.length === 0) {
+            throw new Error('有効な問題データが見つかりません');
+        }
+        
+    } catch (error) {
+        console.error('Excelファイル読み込みエラー:', error);
+        throw error;
+    }
+}
+
+// エラー表示
+function showError(message) {
+    document.getElementById('loadingScreen').style.display = 'none';
+    document.getElementById('startScreen').style.display = 'none';
+    document.getElementById('errorMessage').style.display = 'block';
+    document.getElementById('errorText').textContent = message;
+}
+
+// 練習開始
+function startPractice() {
     document.getElementById('startScreen').style.display = 'none';
     document.getElementById('testScreen').style.display = 'block';
+    
+    isPractice = true;
+    currentData = practiceData;
+    currentQuestion = 0;
+    practiceScore = 0;
+    
+    document.getElementById('questionType').textContent = '練習問題';
+    loadQuestion();
+}
+
+// 本番テスト開始
+function startMainTest() {
+    document.getElementById('practiceCompleteScreen').style.display = 'none';
+    document.getElementById('testScreen').style.display = 'block';
+    
+    isPractice = false;
+    currentData = testData;
+    currentQuestion = 0;
+    score = 0;
+    testResults = [];
     testStartTime = new Date();
+    
+    document.getElementById('questionType').textContent = '本番テスト';
     loadQuestion();
 }
 
 // 問題の読み込み
 function loadQuestion() {
-    const question = testData[currentQuestion];
+    const question = currentData[currentQuestion];
     questionStartTime = new Date();
     
     // 進捗を更新
+    const totalQuestions = currentData.length;
     document.getElementById('progress').textContent = 
-        `問題 ${currentQuestion + 1} / ${testData.length}`;
+        `問題 ${currentQuestion + 1} / ${totalQuestions}`;
     
     // 音声の準備
     if (currentAudio) {
@@ -163,7 +218,7 @@ function selectChoice(buttonIndex) {
     const choiceButtons = document.querySelectorAll('.choice-button');
     const selectedButton = choiceButtons[buttonIndex];
     const originalIndex = parseInt(selectedButton.getAttribute('data-original-index'));
-    const question = testData[currentQuestion];
+    const question = currentData[currentQuestion];
     
     // 回答時間を記録
     const responseTime = new Date() - questionStartTime;
@@ -175,7 +230,11 @@ function selectChoice(buttonIndex) {
     let isCorrect = false;
     if (originalIndex === question.correct) {
         selectedButton.classList.add('correct');
-        score++;
+        if (isPractice) {
+            practiceScore++;
+        } else {
+            score++;
+        }
         isCorrect = true;
     } else {
         selectedButton.classList.add('incorrect');
@@ -187,15 +246,17 @@ function selectChoice(buttonIndex) {
         });
     }
     
-    // 結果を記録
-    testResults.push({
-        questionNumber: currentQuestion + 1,
-        targetWord: question.targetWord,
-        selectedAnswer: question.choices[originalIndex],
-        correctAnswer: question.choices[question.correct],
-        isCorrect: isCorrect,
-        responseTime: responseTime
-    });
+    // 本番テストの場合のみ結果を記録
+    if (!isPractice) {
+        testResults.push({
+            questionNumber: currentQuestion + 1,
+            targetWord: question.targetWord,
+            selectedAnswer: question.choices[originalIndex],
+            correctAnswer: question.choices[question.correct],
+            isCorrect: isCorrect,
+            responseTime: responseTime
+        });
+    }
     
     // 選択肢を無効化
     choiceButtons.forEach(button => {
@@ -210,10 +271,29 @@ function selectChoice(buttonIndex) {
 function nextQuestion() {
     currentQuestion++;
     
-    if (currentQuestion < testData.length) {
+    if (currentQuestion < currentData.length) {
         loadQuestion();
     } else {
-        showResults();
+        if (isPractice) {
+            // 練習終了
+            showPracticeComplete();
+        } else {
+            // 本番終了
+            showResults();
+        }
+    }
+}
+
+// 練習完了画面を表示
+function showPracticeComplete() {
+    document.getElementById('testScreen').style.display = 'none';
+    document.getElementById('practiceCompleteScreen').style.display = 'block';
+    document.getElementById('practiceScore').textContent = practiceScore;
+    
+    // 音声を停止
+    if (currentAudio) {
+        currentAudio.pause();
+        currentAudio = null;
     }
 }
 
@@ -237,7 +317,7 @@ function showResults() {
         results: testResults
     });
     
-    // 結果をローカルストレージに保存（オプション）
+    // 結果をローカルストレージに保存
     saveResults();
 }
 
@@ -263,13 +343,15 @@ function saveResults() {
     localStorage.setItem('listeningTestResults', JSON.stringify(allResults));
 }
 
-// テストの再開
+// テストの再開（最初から）
 function restartTest() {
     currentQuestion = 0;
     score = 0;
+    practiceScore = 0;
     testResults = [];
     selectedAnswer = null;
     audioPlayed = false;
+    isPractice = true;
     
     if (currentAudio) {
         currentAudio.pause();
@@ -280,25 +362,7 @@ function restartTest() {
     document.getElementById('startScreen').style.display = 'block';
 }
 
-// ページ読み込み時の初期化
-document.addEventListener('DOMContentLoaded', function() {
-    // 音声ファイルのプリロード（オプション）
-    preloadAudioFiles();
-});
-
-// 音声ファイルのプリロード
-function preloadAudioFiles() {
-    console.log('音声ファイルのプリロードを開始します...');
-    
-    // 最初の数問だけプリロード
-    const preloadCount = Math.min(5, testData.length);
-    for (let i = 0; i < preloadCount; i++) {
-        const audio = new Audio(testData[i].audio);
-        audio.preload = 'auto';
-    }
-}
-
-// キーボードショートカット（オプション）
+// キーボードショートカット
 document.addEventListener('keydown', function(event) {
     // スペースキーで音声再生
     if (event.code === 'Space' && !audioPlayed && 

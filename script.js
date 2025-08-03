@@ -28,7 +28,7 @@ document.addEventListener('DOMContentLoaded', async function() {
 // Excelファイルの読み込み
 async function loadExcelData() {
     try {
-        const response = await fetch('multiplechoice stimuli list.xlsx');
+        const response = await fetch('multiple-choice stimuli list.xlsx');
         if (!response.ok) {
             throw new Error('Excelファイルが見つかりません');
         }

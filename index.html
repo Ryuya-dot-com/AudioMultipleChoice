@@ -215,6 +215,44 @@
             margin: 20px 0;
             text-align: center;
         }
+        
+        .practice-complete-screen {
+            text-align: center;
+            padding: 40px;
+        }
+        
+        .practice-complete-screen h2 {
+            font-size: 24px;
+            margin-bottom: 20px;
+            color: #333;
+        }
+        
+        .practice-complete-screen h3 {
+            font-size: 18px;
+            margin-bottom: 15px;
+            color: #555;
+        }
+        
+        .practice-result {
+            background-color: #e8f5e9;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+            font-size: 18px;
+        }
+        
+        .practice-result span {
+            font-weight: bold;
+            color: #4CAF50;
+        }
+        
+        .question-type-indicator {
+            text-align: center;
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 10px;
+            font-style: italic;
+        }
     </style>
 </head>
 <body>
@@ -223,21 +261,42 @@
         
         <!-- スタート画面 -->
         <div class="start-screen" id="startScreen">
-            <h2>テストを開始する前に</h2>
+            <h2>英単語リスニングテストへようこそ</h2>
             <div class="instructions">
+                <h3>テストの流れ</h3>
                 <ul>
-                    <li>これから合計80個の英単語を聞いてもらいます。</li>
-                    <li>日本語の選択肢が４つ提示されるので英単語の意味に対応する選択肢を一つ選択してください。</li>
+                    <li>まず3問の練習問題で操作に慣れていただきます。</li>
+                    <li>練習後、本番の80問のテストが始まります。</li>
+                    <li>日本語の選択肢が４つ提示されるので、英単語の意味に対応する選択肢を選んでください。</li>
                     <li>英単語は一度しか流れません。</li>
                     <li>音声が再生されない場合は、ブラウザの設定を確認してください。</li>
                 </ul>
             </div>
-            <button class="start-button" onclick="startTest()">テストを開始</button>
+            <button class="start-button" onclick="startPractice()">練習問題を開始</button>
+        </div>
+        
+        <!-- 練習終了画面 -->
+        <div class="practice-complete-screen" id="practiceCompleteScreen" style="display: none;">
+            <h2>練習問題が終了しました</h2>
+            <div class="practice-result">
+                <p>練習問題の結果: <span id="practiceScore">0</span> / 3 問正解</p>
+                <p>操作方法は理解できましたか？</p>
+            </div>
+            <div class="instructions">
+                <h3>本番テストについて</h3>
+                <ul>
+                    <li>これから80問の本番テストが始まります。</li>
+                    <li>途中で休憩はできません。</li>
+                    <li>準備ができたら「本番テストを開始」ボタンを押してください。</li>
+                </ul>
+            </div>
+            <button class="start-button" onclick="startMainTest()">本番テストを開始</button>
         </div>
         
         <!-- テスト画面 -->
         <div class="test-screen" id="testScreen">
-            <div class="progress" id="progress">問題 1 / 80</div>
+            <div class="question-type-indicator" id="questionType">練習問題</div>
+            <div class="progress" id="progress">問題 1 / 3</div>
             
             <div class="audio-control">
                 <button class="play-button" id="playButton" onclick="playAudio()">

@@ -13,11 +13,11 @@ let testResults = [];
 let isPractice = true;
 let currentData = [];
 
-// ページ読み込み時にExcelファイルを読み込む
+// ページ読み込み時にCSVファイルを読み込む
 document.addEventListener('DOMContentLoaded', async function() {
     try {
         document.getElementById('loadingScreen').style.display = 'block';
-        await loadExcelData();
+        await loadCSVData();
         document.getElementById('loadingScreen').style.display = 'none';
         document.getElementById('startScreen').style.display = 'block';
     } catch (error) {
@@ -25,58 +25,80 @@ document.addEventListener('DOMContentLoaded', async function() {
     }
 });
 
-// Excelファイルの読み込み
-async function loadExcelData() {
+// CSVファイルの読み込み
+async function loadCSVData() {
     try {
-        const response = await fetch('multiple_choice_stimuli_list.xlsx');
+        const response = await fetch('stimuli_list.csv');
         if (!response.ok) {
-            throw new Error('Excelファイルが見つかりません');
+            throw new Error('CSVファイルが見つかりません');
         }
         
-        const arrayBuffer = await response.arrayBuffer();
-        const workbook = XLSX.read(arrayBuffer, { type: 'array' });
-        const sheetName = workbook.SheetNames[0];
-        const worksheet = workbook.Sheets[sheetName];
-        const data = XLSX.utils.sheet_to_json(worksheet);
+        // UTF-8でテキストを読み込む
+        const text = await response.text();
+        
+        // CSVをパース
+        const rows = parseCSV(text);
+        
+        // ヘッダー行を取得
+        const headers = rows[0];
         
         // データを練習問題と本番問題に分ける
         practiceData = [];
         testData = [];
         
-        data.forEach(row => {
-            if (!row.display || !row.stimuli) return;
+        // ヘッダー行をスキップして処理
+        for (let i = 1; i < rows.length; i++) {
+            const row = rows[i];
+            if (row.length < headers.length) continue;
+            
+            // 各列のインデックスを取得
+            const displayIndex = headers.indexOf('display');
+            const answerIndex = headers.indexOf('ANSWER');
+            const stimuliIndex = headers.indexOf('stimuli');
+            const responseAIndex = headers.indexOf('responseA');
+            const responseBIndex = headers.indexOf('responseB');
+            const responseCIndex = headers.indexOf('responseC');
+            const responseDIndex = headers.indexOf('responseD');
+            const targetwordIndex = headers.indexOf('targetword');
+            
+            const display = row[displayIndex];
+            const stimuli = row[stimuliIndex];
+            
+            if (!display || !stimuli || display === '') continue;
             
             const choices = [
-                row.responseA,
-                row.responseB,
-                row.responseC,
-                row.responseD
+                row[responseAIndex],
+                row[responseBIndex],
+                row[responseCIndex],
+                row[responseDIndex]
             ];
+            
+            const answer = row[answerIndex];
             
             // 正解のインデックスを見つける
             let correctIndex = -1;
-            for (let i = 0; i < choices.length; i++) {
-                if (choices[i] === row.ANSWER) {
-                    correctIndex = i;
+            for (let j = 0; j < choices.length; j++) {
+                if (choices[j] === answer) {
+                    correctIndex = j;
                     break;
                 }
             }
             
             const questionData = {
-                audio: row.display.startsWith('Practice') 
-                    ? `practice_stimuli/${row.stimuli}`
-                    : `stimuli/${row.stimuli}`,
+                audio: display.startsWith('Practice') 
+                    ? `practice_stimuli/${stimuli}`
+                    : `stimuli/${stimuli}`,
                 choices: choices,
                 correct: correctIndex,
-                targetWord: row.targetword
+                targetWord: row[targetwordIndex]
             };
             
-            if (row.display.startsWith('Practice')) {
+            if (display.startsWith('Practice')) {
                 practiceData.push(questionData);
-            } else if (row.display === 'Trial') {
+            } else if (display === 'Trial') {
                 testData.push(questionData);
             }
-        });
+        }
         
         console.log(`データ読み込み完了: 練習問題 ${practiceData.length}問, 本番問題 ${testData.length}問`);
         
@@ -85,9 +107,48 @@ async function loadExcelData() {
         }
         
     } catch (error) {
-        console.error('Excelファイル読み込みエラー:', error);
+        console.error('CSVファイル読み込みエラー:', error);
         throw error;
     }
+}
+
+// CSVパーサー（日本語対応）
+function parseCSV(text) {
+    const rows = [];
+    const lines = text.split(/\r?\n/);
+    
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        if (line === '') continue;
+        
+        const row = [];
+        let cell = '';
+        let inQuotes = false;
+        
+        for (let j = 0; j < line.length; j++) {
+            const char = line[j];
+            const nextChar = line[j + 1];
+            
+            if (char === '"') {
+                if (inQuotes && nextChar === '"') {
+                    cell += '"';
+                    j++; // Skip next quote
+                } else {
+                    inQuotes = !inQuotes;
+                }
+            } else if (char === ',' && !inQuotes) {
+                row.push(cell);
+                cell = '';
+            } else {
+                cell += char;
+            }
+        }
+        
+        row.push(cell); // Add last cell
+        rows.push(row);
+    }
+    
+    return rows;
 }
 
 // エラー表示

@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>英単語リスニングテスト</title>
+    <style>
+        body {
+            font-family: 'Hiragino Sans', 'Meiryo', sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        
+        .container {
+            background-color: white;
+            border-radius: 10px;
+            padding: 30px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 30px;
+        }
+        
+        .start-screen {
+            text-align: center;
+            padding: 40px;
+        }
+        
+        .start-screen h2 {
+            font-size: 24px;
+            margin-bottom: 20px;
+        }
+        
+        .instructions {
+            text-align: left;
+            background-color: #f0f8ff;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+            line-height: 1.8;
+        }
+        
+        .instructions ul {
+            margin: 10px 0;
+            padding-left: 25px;
+        }
+        
+        .start-button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 15px 40px;
+            font-size: 18px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-top: 20px;
+            transition: background-color 0.3s;
+        }
+        
+        .start-button:hover {
+            background-color: #45a049;
+        }
+        
+        .test-screen {
+            display: none;
+        }
+        
+        .progress {
+            text-align: center;
+            margin-bottom: 20px;
+            font-size: 18px;
+            color: #666;
+        }
+        
+        .audio-control {
+            text-align: center;
+            margin: 30px 0;
+        }
+        
+        .play-button {
+            background-color: #2196F3;
+            color: white;
+            padding: 12px 30px;
+            font-size: 16px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        
+        .play-button:hover {
+            background-color: #1976D2;
+        }
+        
+        .play-button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+        
+        .choices {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-top: 30px;
+        }
+        
+        .choice-button {
+            padding: 20px;
+            font-size: 18px;
+            border: 2px solid #ddd;
+            background-color: white;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .choice-button:hover:not(:disabled) {
+            background-color: #f0f0f0;
+            border-color: #999;
+        }
+        
+        .choice-button:disabled {
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
+        
+        .choice-button.selected {
+            background-color: #e3f2fd;
+            border-color: #2196F3;
+        }
+        
+        .choice-button.correct {
+            background-color: #c8e6c9;
+            border-color: #4CAF50;
+        }
+        
+        .choice-button.incorrect {
+            background-color: #ffcdd2;
+            border-color: #f44336;
+        }
+        
+        .next-button {
+            display: none;
+            margin: 30px auto 0;
+            background-color: #FF9800;
+            color: white;
+            padding: 12px 30px;
+            font-size: 16px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        
+        .next-button:hover {
+            background-color: #F57C00;
+        }
+        
+        .result-screen {
+            display: none;
+            text-align: center;
+            padding: 40px;
+        }
+        
+        .result-screen h2 {
+            font-size: 28px;
+            margin-bottom: 20px;
+            color: #333;
+        }
+        
+        .score {
+            font-size: 48px;
+            color: #4CAF50;
+            margin: 20px 0;
+        }
+        
+        .restart-button {
+            background-color: #9C27B0;
+            color: white;
+            padding: 15px 40px;
+            font-size: 18px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-top: 20px;
+            transition: background-color 0.3s;
+        }
+        
+        .restart-button:hover {
+            background-color: #7B1FA2;
+        }
+        
+        .audio-status {
+            margin-top: 10px;
+            font-size: 14px;
+            color: #666;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+        }
+        
+        .error-message {
+            background-color: #fee;
+            color: #c00;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>英単語リスニングテスト</h1>
+        
+        <!-- スタート画面 -->
+        <div class="start-screen" id="startScreen">
+            <h2>テストを開始する前に</h2>
+            <div class="instructions">
+                <ul>
+                    <li>これから合計80個の英単語を聞いてもらいます。</li>
+                    <li>日本語の選択肢が４つ提示されるので英単語の意味に対応する選択肢を一つ選択してください。</li>
+                    <li>英単語は一度しか流れません。</li>
+                    <li>音声が再生されない場合は、ブラウザの設定を確認してください。</li>
+                </ul>
+            </div>
+            <button class="start-button" onclick="startTest()">テストを開始</button>
+        </div>
+        
+        <!-- テスト画面 -->
+        <div class="test-screen" id="testScreen">
+            <div class="progress" id="progress">問題 1 / 80</div>
+            
+            <div class="audio-control">
+                <button class="play-button" id="playButton" onclick="playAudio()">
+                    音声を再生（1回のみ）
+                </button>
+                <div class="audio-status" id="audioStatus"></div>
+            </div>
+            
+            <div class="choices" id="choices">
+                <button class="choice-button" onclick="selectChoice(0)"></button>
+                <button class="choice-button" onclick="selectChoice(1)"></button>
+                <button class="choice-button" onclick="selectChoice(2)"></button>
+                <button class="choice-button" onclick="selectChoice(3)"></button>
+            </div>
+            
+            <button class="next-button" id="nextButton" onclick="nextQuestion()">次の問題へ</button>
+        </div>
+        
+        <!-- 結果画面 -->
+        <div class="result-screen" id="resultScreen">
+            <h2>テスト終了！</h2>
+            <p>お疲れ様でした。</p>
+            <div class="score" id="finalScore">0 / 80</div>
+            <p>正答率: <span id="percentage">0</span>%</p>
+            <button class="restart-button" onclick="restartTest()">もう一度挑戦</button>
+        </div>
+    </div>
+    
+    <!-- JavaScriptファイルの読み込み -->
+    <script src="script.js"></script>
+</body>
+</html>

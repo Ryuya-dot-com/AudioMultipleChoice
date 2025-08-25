@@ -450,6 +450,9 @@ function showResults() {
     document.getElementById('finalScore').textContent = `${score} / ${testData.length}`;
     document.getElementById('percentage').textContent = percentage;
     
+    // 履歴統計を表示
+    displayHistoryStats();
+    
     // 結果をコンソールに出力（デバッグ用）
     console.log('テスト結果:', {
         participantName: participantName,
@@ -464,11 +467,41 @@ function showResults() {
     saveResults();
 }
 
+// 履歴統計の表示
+function displayHistoryStats() {
+    const allResults = JSON.parse(localStorage.getItem('listeningTestResults') || '[]');
+    
+    // 現在の受験者の結果のみをフィルタリング
+    const userResults = allResults.filter(r => r.participantName === participantName);
+    
+    // 受験回数を表示（今回を含む）
+    const totalAttempts = userResults.length + 1;
+    if (document.getElementById('totalAttempts')) {
+        document.getElementById('totalAttempts').textContent = totalAttempts;
+    }
+    
+    // 平均正答率を計算（今回の結果を含む）
+    if (userResults.length > 0) {
+        const currentPercentage = Math.round((score / testData.length) * 100);
+        const totalPercentage = userResults.reduce((sum, r) => sum + r.percentage, 0) + currentPercentage;
+        const averagePercentage = Math.round(totalPercentage / totalAttempts);
+        if (document.getElementById('averageScore')) {
+            document.getElementById('averageScore').textContent = averagePercentage;
+        }
+    } else {
+        // 初回の場合
+        const currentPercentage = Math.round((score / testData.length) * 100);
+        if (document.getElementById('averageScore')) {
+            document.getElementById('averageScore').textContent = currentPercentage;
+        }
+    }
+}
+
 // 結果の保存
 function saveResults() {
     const now = new Date();
     const resultData = {
-        participantName: participantName,  // 名前を追加
+        participantName: participantName,
         date: now.toISOString(),
         dateString: now.toLocaleString('ja-JP'),
         score: score,
@@ -481,73 +514,125 @@ function saveResults() {
     let allResults = JSON.parse(localStorage.getItem('listeningTestResults') || '[]');
     allResults.push(resultData);
     
-    // 最新の20件のみ保存（名前付きなので少し多めに保存）
-    if (allResults.length > 20) {
-        allResults = allResults.slice(-20);
+    // 最新の100件のみ保存
+    if (allResults.length > 100) {
+        allResults = allResults.slice(-100);
     }
     
     localStorage.setItem('listeningTestResults', JSON.stringify(allResults));
     
-    // CSVダウンロード用のデータも生成
-    generateCSVData(resultData);
-    
-    // 過去の結果を表示（デバッグ用）
     console.log(`保存済みの結果: ${allResults.length}件`);
     console.log('最新の結果:', resultData);
 }
 
-// CSVデータの生成（ダウンロード機能付き）
-function generateCSVData(resultData) {
-    // 基本情報のCSV
-    const summaryCSV = [
-        ['受験者名', '日時', '正答数', '総問題数', '正答率(%)'],
-        [
-            resultData.participantName,
-            resultData.dateString,
-            resultData.score,
-            resultData.totalQuestions,
-            resultData.percentage
-        ]
-    ];
+// 全受験履歴をCSVでダウンロード
+function downloadAllResults() {
+    const allResults = JSON.parse(localStorage.getItem('listeningTestResults') || '[]');
     
-    // 詳細結果のCSV
-    const detailsCSV = [
-        ['問題番号', '英単語', '選択した答え', '正解', '正誤', '回答時間(秒)']
-    ];
+    // 現在のテスト結果も含める（まだ保存されていない場合）
+    const currentResult = {
+        participantName: participantName,
+        dateString: new Date().toLocaleString('ja-JP'),
+        score: score,
+        totalQuestions: testData.length,
+        percentage: Math.round((score / testData.length) * 100),
+        details: testResults
+    };
     
-    resultData.details.forEach(detail => {
-        detailsCSV.push([
-            detail.questionNumber,
-            detail.targetWord,
-            detail.selectedAnswer,
-            detail.correctAnswer,
-            detail.isCorrect ? '○' : '×',
-            Math.round(detail.responseTime / 1000)
-        ]);
+    // CSVコンテンツを構築
+    let csvContent = '\uFEFF'; // BOM for UTF-8
+    
+    // タイトル
+    csvContent += '英単語リスニングテスト 全受験履歴\n';
+    csvContent += `ダウンロード日時: ${new Date().toLocaleString('ja-JP')}\n`;
+    csvContent += '\n';
+    
+    // セクション1: 全体サマリー
+    csvContent += '【全体サマリー】\n';
+    const totalTests = allResults.length + 1;
+    const allScores = [...allResults.map(r => r.percentage), currentResult.percentage];
+    const avgScore = Math.round(allScores.reduce((sum, s) => sum + s, 0) / allScores.length);
+    const maxScore = Math.max(...allScores);
+    const minScore = Math.min(...allScores);
+    
+    csvContent += `総受験回数,${totalTests}\n`;
+    csvContent += `全体平均正答率,${avgScore}%\n`;
+    csvContent += `最高正答率,${maxScore}%\n`;
+    csvContent += `最低正答率,${minScore}%\n`;
+    csvContent += '\n';
+    
+    // セクション2: 受験者別サマリー
+    csvContent += '【受験者別サマリー】\n';
+    csvContent += '受験者名,受験回数,平均正答率(%),最高正答率(%),最低正答率(%)\n';
+    
+    // 受験者ごとに集計
+    const participantStats = {};
+    [...allResults, currentResult].forEach(result => {
+        const name = result.participantName || '名前未入力';
+        if (!participantStats[name]) {
+            participantStats[name] = {
+                count: 0,
+                scores: []
+            };
+        }
+        participantStats[name].count++;
+        participantStats[name].scores.push(result.percentage);
     });
     
-    // コンソールにCSVデータを出力
-    console.log('=== CSV形式の結果（概要）===');
-    console.log(summaryCSV.map(row => row.join(',')).join('\n'));
-    console.log('=== CSV形式の結果（詳細）===');
-    console.log(detailsCSV.map(row => row.join(',')).join('\n'));
-}
-
-// CSVダウンロード関数（オプション機能）
-function downloadCSV() {
-    const allResults = JSON.parse(localStorage.getItem('listeningTestResults') || '[]');
-    if (allResults.length === 0) {
-        alert('保存されたデータがありません');
-        return;
+    Object.keys(participantStats).forEach(name => {
+        const stats = participantStats[name];
+        const avgScore = Math.round(stats.scores.reduce((sum, s) => sum + s, 0) / stats.scores.length);
+        const maxScore = Math.max(...stats.scores);
+        const minScore = Math.min(...stats.scores);
+        csvContent += `${name},${stats.count},${avgScore},${maxScore},${minScore}\n`;
+    });
+    csvContent += '\n';
+    
+    // セクション3: 全受験履歴
+    csvContent += '【全受験履歴】\n';
+    csvContent += '番号,受験者名,日時,正答数,総問題数,正答率(%)\n';
+    
+    [...allResults, currentResult].forEach((result, index) => {
+        csvContent += `${index + 1},${result.participantName || '名前未入力'},${result.dateString},${result.score},${result.totalQuestions},${result.percentage}\n`;
+    });
+    csvContent += '\n';
+    
+    // セクション4: 最新テストの詳細結果
+    csvContent += '【最新テストの詳細結果】\n';
+    csvContent += `受験者: ${currentResult.participantName}\n`;
+    csvContent += `日時: ${currentResult.dateString}\n`;
+    csvContent += `結果: ${currentResult.score} / ${currentResult.totalQuestions} (${currentResult.percentage}%)\n`;
+    csvContent += '\n';
+    
+    csvContent += '問題番号,英単語,選択した答え,正解,正誤,回答時間(秒)\n';
+    if (currentResult.details && currentResult.details.length > 0) {
+        currentResult.details.forEach(detail => {
+            csvContent += `${detail.questionNumber},${detail.targetWord || ''},${detail.selectedAnswer},${detail.correctAnswer},${detail.isCorrect ? '○' : '×'},${Math.round(detail.responseTime / 1000)}\n`;
+        });
+        
+        // 詳細統計
+        csvContent += '\n';
+        csvContent += '【詳細統計】\n';
+        const avgResponseTime = currentResult.details.reduce((sum, d) => sum + d.responseTime, 0) / currentResult.details.length;
+        csvContent += `平均回答時間,${Math.round(avgResponseTime / 1000)}秒\n`;
+        
+        const correctAnswers = currentResult.details.filter(d => d.isCorrect);
+        const incorrectAnswers = currentResult.details.filter(d => !d.isCorrect);
+        
+        if (correctAnswers.length > 0) {
+            const avgCorrectTime = correctAnswers.reduce((sum, d) => sum + d.responseTime, 0) / correctAnswers.length;
+            csvContent += `正答時の平均回答時間,${Math.round(avgCorrectTime / 1000)}秒\n`;
+        }
+        
+        if (incorrectAnswers.length > 0) {
+            const avgIncorrectTime = incorrectAnswers.reduce((sum, d) => sum + d.responseTime, 0) / incorrectAnswers.length;
+            csvContent += `誤答時の平均回答時間,${Math.round(avgIncorrectTime / 1000)}秒\n`;
+        }
     }
     
-    // 最新の結果を取得
-    const latestResult = allResults[allResults.length - 1];
-    
-    // CSVデータを作成
-    let csvContent = '\uFEFF'; // BOM for UTF-8
-    csvContent += '受験者名,日時,正答数,総問題数,正答率(%)\n';
-    csvContent += `${latestResult.participantName},${latestResult.dateString},${latestResult.score},${latestResult.totalQuestions},${latestResult.percentage}\n`;
+    // ファイル名を生成
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').substring(0, 19);
+    const filename = `listening_test_all_results_${timestamp}.csv`;
     
     // Blobを作成してダウンロード
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -555,12 +640,17 @@ function downloadCSV() {
     const url = URL.createObjectURL(blob);
     
     link.setAttribute('href', url);
-    link.setAttribute('download', `listening_test_result_${latestResult.participantName}_${new Date().getTime()}.csv`);
+    link.setAttribute('download', filename);
     link.style.visibility = 'hidden';
     
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    
+    // URLオブジェクトを解放
+    URL.revokeObjectURL(url);
+    
+    console.log(`CSVファイル "${filename}" をダウンロードしました`);
 }
 
 // テストの再開（最初から）
@@ -627,4 +717,12 @@ function showResultHistory() {
     allResults.forEach((result, index) => {
         console.log(`${index + 1}. ${result.participantName} - ${result.dateString} - ${result.score}/${result.totalQuestions} (${result.percentage}%)`);
     });
+}
+
+// データクリア関数（デバッグ用）
+function clearAllData() {
+    if (confirm('本当にすべての履歴データを削除しますか？')) {
+        localStorage.removeItem('listeningTestResults');
+        console.log('すべての履歴データを削除しました');
+    }
 }

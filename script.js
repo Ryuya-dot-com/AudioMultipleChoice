@@ -250,7 +250,7 @@ function startMainTest() {
 // 問題の読み込み
 function loadQuestion() {
     const question = currentData[currentQuestion];
-    questionStartTime = new Date();
+    questionStartTime = performance.now(); // より正確なタイミング測定
     
     // 進捗を更新
     const totalQuestions = currentData.length;
@@ -339,8 +339,8 @@ function selectChoice(buttonIndex) {
     const originalIndex = parseInt(selectedButton.getAttribute('data-original-index'));
     const question = currentData[currentQuestion];
     
-    // 回答時間を記録
-    const responseTime = new Date() - questionStartTime;
+    // 回答時間を記録（ミリ秒単位）
+    const responseTime = Math.round(performance.now() - questionStartTime);
     
     // 選択したボタンをマーク
     selectedButton.classList.add('selected');
@@ -373,7 +373,7 @@ function selectChoice(buttonIndex) {
             selectedAnswer: question.choices[originalIndex],
             correctAnswer: question.choices[question.correct],
             isCorrect: isCorrect,
-            responseTime: responseTime
+            responseTime: responseTime  // ミリ秒で保存
         });
     }
     
@@ -426,7 +426,7 @@ function showResults() {
     document.getElementById('testScreen').style.display = 'none';
     document.getElementById('resultScreen').style.display = 'block';
     
-    const totalTime = new Date() - testStartTime;
+    const totalTime = performance.now() - testStartTime;
     const percentage = Math.round((score / testData.length) * 100);
     
     // 名前を表示
@@ -441,7 +441,8 @@ function showResults() {
         month: '2-digit',
         day: '2-digit',
         hour: '2-digit',
-        minute: '2-digit'
+        minute: '2-digit',
+        second: '2-digit'
     });
     if (document.getElementById('testDateTime')) {
         document.getElementById('testDateTime').textContent = dateTimeString;
@@ -459,7 +460,7 @@ function showResults() {
         score: score,
         totalQuestions: testData.length,
         percentage: percentage,
-        totalTime: Math.round(totalTime / 1000) + '秒',
+        totalTime: Math.round(totalTime) + 'ミリ秒',
         results: testResults
     });
     
@@ -525,11 +526,11 @@ function saveResults() {
     console.log('最新の結果:', resultData);
 }
 
-// 全受験履歴をCSVでダウンロード
+// 全受験履歴をExcelでダウンロード（複数シート）
 function downloadAllResults() {
     const allResults = JSON.parse(localStorage.getItem('listeningTestResults') || '[]');
     
-    // 現在のテスト結果も含める（まだ保存されていない場合）
+    // 現在のテスト結果も含める
     const currentResult = {
         participantName: participantName,
         dateString: new Date().toLocaleString('ja-JP'),
@@ -539,33 +540,35 @@ function downloadAllResults() {
         details: testResults
     };
     
-    // CSVコンテンツを構築
-    let csvContent = '\uFEFF'; // BOM for UTF-8
+    // Excelワークブックを作成
+    const wb = XLSX.utils.book_new();
     
-    // タイトル
-    csvContent += '英単語リスニングテスト 全受験履歴\n';
-    csvContent += `ダウンロード日時: ${new Date().toLocaleString('ja-JP')}\n`;
-    csvContent += '\n';
+    // シート1: サマリー
+    const summaryData = [];
     
-    // セクション1: 全体サマリー
-    csvContent += '【全体サマリー】\n';
+    // タイトルと基本情報
+    summaryData.push(['英単語リスニングテスト 全受験履歴']);
+    summaryData.push(['ダウンロード日時', new Date().toLocaleString('ja-JP')]);
+    summaryData.push([]);
+    
+    // 全体サマリー
+    summaryData.push(['【全体サマリー】']);
     const totalTests = allResults.length + 1;
     const allScores = [...allResults.map(r => r.percentage), currentResult.percentage];
     const avgScore = Math.round(allScores.reduce((sum, s) => sum + s, 0) / allScores.length);
     const maxScore = Math.max(...allScores);
     const minScore = Math.min(...allScores);
     
-    csvContent += `総受験回数,${totalTests}\n`;
-    csvContent += `全体平均正答率,${avgScore}%\n`;
-    csvContent += `最高正答率,${maxScore}%\n`;
-    csvContent += `最低正答率,${minScore}%\n`;
-    csvContent += '\n';
+    summaryData.push(['総受験回数', totalTests]);
+    summaryData.push(['全体平均正答率', avgScore + '%']);
+    summaryData.push(['最高正答率', maxScore + '%']);
+    summaryData.push(['最低正答率', minScore + '%']);
+    summaryData.push([]);
     
-    // セクション2: 受験者別サマリー
-    csvContent += '【受験者別サマリー】\n';
-    csvContent += '受験者名,受験回数,平均正答率(%),最高正答率(%),最低正答率(%)\n';
+    // 受験者別サマリー
+    summaryData.push(['【受験者別サマリー】']);
+    summaryData.push(['受験者名', '受験回数', '平均正答率(%)', '最高正答率(%)', '最低正答率(%)']);
     
-    // 受験者ごとに集計
     const participantStats = {};
     [...allResults, currentResult].forEach(result => {
         const name = result.participantName || '名前未入力';
@@ -584,73 +587,219 @@ function downloadAllResults() {
         const avgScore = Math.round(stats.scores.reduce((sum, s) => sum + s, 0) / stats.scores.length);
         const maxScore = Math.max(...stats.scores);
         const minScore = Math.min(...stats.scores);
-        csvContent += `${name},${stats.count},${avgScore},${maxScore},${minScore}\n`;
+        summaryData.push([name, stats.count, avgScore, maxScore, minScore]);
     });
-    csvContent += '\n';
     
-    // セクション3: 全受験履歴
-    csvContent += '【全受験履歴】\n';
-    csvContent += '番号,受験者名,日時,正答数,総問題数,正答率(%)\n';
+    const ws_summary = XLSX.utils.aoa_to_sheet(summaryData);
+    
+    // 列幅の設定
+    ws_summary['!cols'] = [
+        { wch: 25 },  // 受験者名
+        { wch: 15 },  // 受験回数
+        { wch: 18 },  // 平均正答率
+        { wch: 18 },  // 最高正答率
+        { wch: 18 }   // 最低正答率
+    ];
+    
+    XLSX.utils.book_append_sheet(wb, ws_summary, 'サマリー');
+    
+    // シート2: 全受験履歴
+    const historyData = [];
+    historyData.push(['番号', '受験者名', '日時', '正答数', '総問題数', '正答率(%)']);
     
     [...allResults, currentResult].forEach((result, index) => {
-        csvContent += `${index + 1},${result.participantName || '名前未入力'},${result.dateString},${result.score},${result.totalQuestions},${result.percentage}\n`;
+        historyData.push([
+            index + 1,
+            result.participantName || '名前未入力',
+            result.dateString,
+            result.score,
+            result.totalQuestions,
+            result.percentage
+        ]);
     });
-    csvContent += '\n';
     
-    // セクション4: 最新テストの詳細結果
-    csvContent += '【最新テストの詳細結果】\n';
-    csvContent += `受験者: ${currentResult.participantName}\n`;
-    csvContent += `日時: ${currentResult.dateString}\n`;
-    csvContent += `結果: ${currentResult.score} / ${currentResult.totalQuestions} (${currentResult.percentage}%)\n`;
-    csvContent += '\n';
+    const ws_history = XLSX.utils.aoa_to_sheet(historyData);
     
-    csvContent += '問題番号,英単語,選択した答え,正解,正誤,回答時間(秒)\n';
+    // 列幅の設定
+    ws_history['!cols'] = [
+        { wch: 8 },   // 番号
+        { wch: 20 },  // 受験者名
+        { wch: 25 },  // 日時
+        { wch: 10 },  // 正答数
+        { wch: 12 },  // 総問題数
+        { wch: 12 }   // 正答率
+    ];
+    
+    XLSX.utils.book_append_sheet(wb, ws_history, '全受験履歴');
+    
+    // シート3: 最新テストの詳細（80問）
+    const detailData = [];
+    detailData.push(['受験者', currentResult.participantName]);
+    detailData.push(['日時', currentResult.dateString]);
+    detailData.push(['結果', `${currentResult.score} / ${currentResult.totalQuestions} (${currentResult.percentage}%)`]);
+    detailData.push([]);
+    detailData.push(['問題番号', '英単語', '選択した答え', '正解', '正誤', '回答時間(ミリ秒)', '回答時間(秒)']);
+    
     if (currentResult.details && currentResult.details.length > 0) {
         currentResult.details.forEach(detail => {
-            csvContent += `${detail.questionNumber},${detail.targetWord || ''},${detail.selectedAnswer},${detail.correctAnswer},${detail.isCorrect ? '○' : '×'},${Math.round(detail.responseTime / 1000)}\n`;
+            detailData.push([
+                detail.questionNumber,
+                detail.targetWord || '',
+                detail.selectedAnswer,
+                detail.correctAnswer,
+                detail.isCorrect ? '○' : '×',
+                detail.responseTime,  // ミリ秒単位
+                (detail.responseTime / 1000).toFixed(2)  // 秒単位（小数点2桁）
+            ]);
         });
-        
-        // 詳細統計
-        csvContent += '\n';
-        csvContent += '【詳細統計】\n';
+    }
+    
+    const ws_detail = XLSX.utils.aoa_to_sheet(detailData);
+    
+    // 列幅の設定
+    ws_detail['!cols'] = [
+        { wch: 10 },  // 問題番号
+        { wch: 15 },  // 英単語
+        { wch: 20 },  // 選択した答え
+        { wch: 20 },  // 正解
+        { wch: 8 },   // 正誤
+        { wch: 18 },  // 回答時間(ミリ秒)
+        { wch: 15 }   // 回答時間(秒)
+    ];
+    
+    XLSX.utils.book_append_sheet(wb, ws_detail, '最新テスト詳細');
+    
+    // シート4: 統計分析
+    const statsData = [];
+    statsData.push(['【最新テストの統計分析】']);
+    statsData.push([]);
+    
+    if (currentResult.details && currentResult.details.length > 0) {
+        // 基本統計
         const avgResponseTime = currentResult.details.reduce((sum, d) => sum + d.responseTime, 0) / currentResult.details.length;
-        csvContent += `平均回答時間,${Math.round(avgResponseTime / 1000)}秒\n`;
+        statsData.push(['平均回答時間（ミリ秒）', Math.round(avgResponseTime)]);
+        statsData.push(['平均回答時間（秒）', (avgResponseTime / 1000).toFixed(2)]);
+        statsData.push([]);
         
+        // 正答・誤答別統計
         const correctAnswers = currentResult.details.filter(d => d.isCorrect);
         const incorrectAnswers = currentResult.details.filter(d => !d.isCorrect);
         
+        statsData.push(['正答問題数', correctAnswers.length]);
+        statsData.push(['誤答問題数', incorrectAnswers.length]);
+        statsData.push([]);
+        
         if (correctAnswers.length > 0) {
             const avgCorrectTime = correctAnswers.reduce((sum, d) => sum + d.responseTime, 0) / correctAnswers.length;
-            csvContent += `正答時の平均回答時間,${Math.round(avgCorrectTime / 1000)}秒\n`;
+            statsData.push(['正答時の平均回答時間（ミリ秒）', Math.round(avgCorrectTime)]);
+            statsData.push(['正答時の平均回答時間（秒）', (avgCorrectTime / 1000).toFixed(2)]);
+            
+            // 最速・最遅
+            const fastestCorrect = Math.min(...correctAnswers.map(d => d.responseTime));
+            const slowestCorrect = Math.max(...correctAnswers.map(d => d.responseTime));
+            statsData.push(['正答時の最速回答（ミリ秒）', fastestCorrect]);
+            statsData.push(['正答時の最遅回答（ミリ秒）', slowestCorrect]);
+            
+            // 中央値
+            const sortedCorrectTimes = correctAnswers.map(d => d.responseTime).sort((a, b) => a - b);
+            const medianCorrect = sortedCorrectTimes.length % 2 === 0
+                ? (sortedCorrectTimes[sortedCorrectTimes.length / 2 - 1] + sortedCorrectTimes[sortedCorrectTimes.length / 2]) / 2
+                : sortedCorrectTimes[Math.floor(sortedCorrectTimes.length / 2)];
+            statsData.push(['正答時の中央値（ミリ秒）', Math.round(medianCorrect)]);
         }
+        
+        statsData.push([]);
         
         if (incorrectAnswers.length > 0) {
             const avgIncorrectTime = incorrectAnswers.reduce((sum, d) => sum + d.responseTime, 0) / incorrectAnswers.length;
-            csvContent += `誤答時の平均回答時間,${Math.round(avgIncorrectTime / 1000)}秒\n`;
+            statsData.push(['誤答時の平均回答時間（ミリ秒）', Math.round(avgIncorrectTime)]);
+            statsData.push(['誤答時の平均回答時間（秒）', (avgIncorrectTime / 1000).toFixed(2)]);
+            
+            // 最速・最遅
+            const fastestIncorrect = Math.min(...incorrectAnswers.map(d => d.responseTime));
+            const slowestIncorrect = Math.max(...incorrectAnswers.map(d => d.responseTime));
+            statsData.push(['誤答時の最速回答（ミリ秒）', fastestIncorrect]);
+            statsData.push(['誤答時の最遅回答（ミリ秒）', slowestIncorrect]);
+            
+            // 中央値
+            const sortedIncorrectTimes = incorrectAnswers.map(d => d.responseTime).sort((a, b) => a - b);
+            const medianIncorrect = sortedIncorrectTimes.length % 2 === 0
+                ? (sortedIncorrectTimes[sortedIncorrectTimes.length / 2 - 1] + sortedIncorrectTimes[sortedIncorrectTimes.length / 2]) / 2
+                : sortedIncorrectTimes[Math.floor(sortedIncorrectTimes.length / 2)];
+            statsData.push(['誤答時の中央値（ミリ秒）', Math.round(medianIncorrect)]);
         }
+        
+        statsData.push([]);
+        statsData.push(['【回答時間分布】']);
+        statsData.push(['回答時間範囲', '問題数', '割合(%)', '正答数', '誤答数']);
+        
+        // 回答時間の分布（より細かく）
+        const timeRanges = [
+            { label: '0-1秒', min: 0, max: 1000, count: 0, correct: 0, incorrect: 0 },
+            { label: '1-2秒', min: 1000, max: 2000, count: 0, correct: 0, incorrect: 0 },
+            { label: '2-3秒', min: 2000, max: 3000, count: 0, correct: 0, incorrect: 0 },
+            { label: '3-4秒', min: 3000, max: 4000, count: 0, correct: 0, incorrect: 0 },
+            { label: '4-5秒', min: 4000, max: 5000, count: 0, correct: 0, incorrect: 0 },
+            { label: '5-6秒', min: 5000, max: 6000, count: 0, correct: 0, incorrect: 0 },
+            { label: '6-7秒', min: 6000, max: 7000, count: 0, correct: 0, incorrect: 0 },
+            { label: '7-8秒', min: 7000, max: 8000, count: 0, correct: 0, incorrect: 0 },
+            { label: '8-9秒', min: 8000, max: 9000, count: 0, correct: 0, incorrect: 0 },
+            { label: '9-10秒', min: 9000, max: 10000, count: 0, correct: 0, incorrect: 0 },
+            { label: '10秒以上', min: 10000, max: Infinity, count: 0, correct: 0, incorrect: 0 }
+        ];
+        
+        currentResult.details.forEach(detail => {
+            const time = detail.responseTime;
+            const range = timeRanges.find(r => time >= r.min && time < r.max);
+            if (range) {
+                range.count++;
+                if (detail.isCorrect) {
+                    range.correct++;
+                } else {
+                    range.incorrect++;
+                }
+            }
+        });
+        
+        timeRanges.forEach(range => {
+            if (range.count > 0) {
+                const percentage = Math.round((range.count / currentResult.details.length) * 100);
+                statsData.push([range.label, range.count, percentage, range.correct, range.incorrect]);
+            }
+        });
+        
+        statsData.push([]);
+        statsData.push(['【標準偏差】']);
+        
+        // 標準偏差の計算
+        const mean = avgResponseTime;
+        const variance = currentResult.details.reduce((sum, d) => sum + Math.pow(d.responseTime - mean, 2), 0) / currentResult.details.length;
+        const stdDev = Math.sqrt(variance);
+        
+        statsData.push(['全体の標準偏差（ミリ秒）', Math.round(stdDev)]);
+        statsData.push(['全体の標準偏差（秒）', (stdDev / 1000).toFixed(2)]);
     }
     
-    // ファイル名を生成
+    const ws_stats = XLSX.utils.aoa_to_sheet(statsData);
+    
+    // 列幅の設定
+    ws_stats['!cols'] = [
+        { wch: 35 },  // 項目名
+        { wch: 15 },  // 値
+        { wch: 12 },  // 割合
+        { wch: 10 },  // 正答数
+        { wch: 10 }   // 誤答数
+    ];
+    
+    XLSX.utils.book_append_sheet(wb, ws_stats, '統計分析');
+    
+    // Excelファイルとして保存
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-').substring(0, 19);
-    const filename = `listening_test_all_results_${timestamp}.csv`;
+    const filename = `listening_test_results_${timestamp}.xlsx`;
     
-    // Blobを作成してダウンロード
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    const url = URL.createObjectURL(blob);
+    XLSX.writeFile(wb, filename);
     
-    link.setAttribute('href', url);
-    link.setAttribute('download', filename);
-    link.style.visibility = 'hidden';
-    
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    
-    // URLオブジェクトを解放
-    URL.revokeObjectURL(url);
-    
-    console.log(`CSVファイル "${filename}" をダウンロードしました`);
+    console.log(`Excelファイル "${filename}" をダウンロードしました`);
 }
 
 // テストの再開（最初から）

@@ -255,6 +255,22 @@
             background-color: #7B1FA2;
         }
         
+        .download-button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 12px 30px;
+            font-size: 16px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-right: 10px;
+            transition: background-color 0.3s;
+        }
+        
+        .download-button:hover {
+            background-color: #45a049;
+        }
+        
         .audio-status {
             margin-top: 10px;
             font-size: 14px;
@@ -274,9 +290,11 @@
             border-radius: 5px;
             margin: 20px 0;
             text-align: center;
+            display: none;
         }
         
         .practice-complete-screen {
+            display: none;
             text-align: center;
             padding: 40px;
         }
@@ -313,14 +331,37 @@
             margin-bottom: 10px;
             font-style: italic;
         }
+        
+        .history-info {
+            background-color: #f0f8ff;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+            font-size: 14px;
+            color: #555;
+        }
+        
+        .history-info strong {
+            color: #2196F3;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>英単語リスニングテスト</h1>
         
+        <!-- ローディング画面 -->
+        <div class="loading" id="loadingScreen" style="display: none;">
+            <p>データを読み込んでいます...</p>
+        </div>
+        
+        <!-- エラーメッセージ -->
+        <div class="error-message" id="errorMessage">
+            <p id="errorText"></p>
+        </div>
+        
         <!-- スタート画面 -->
-        <div class="start-screen" id="startScreen">
+        <div class="start-screen" id="startScreen" style="display: none;">
             <h2>英単語リスニングテスト</h2>
             
             <!-- 名前入力セクション -->
@@ -344,7 +385,7 @@
         </div>
         
         <!-- 練習終了画面 -->
-        <div class="practice-complete-screen" id="practiceCompleteScreen" style="display: none;">
+        <div class="practice-complete-screen" id="practiceCompleteScreen">
             <h2>練習問題が終了しました</h2>
             <div class="participant-info">
                 受験者: <strong id="practiceParticipantName"></strong>
@@ -400,7 +441,18 @@
             <p style="font-size: 14px; color: #666;">
                 テスト日時: <span id="testDateTime"></span>
             </p>
-            <button class="restart-button" onclick="restartTest()">もう一度挑戦</button>
+            
+            <div class="history-info">
+                <p>これまでの受験回数: <strong id="totalAttempts">0</strong> 回</p>
+                <p>平均正答率: <strong id="averageScore">0</strong>%</p>
+            </div>
+            
+            <div style="margin-top: 30px;">
+                <button class="download-button" onclick="downloadAllResults()">
+                    全受験履歴をCSVでダウンロード
+                </button>
+                <button class="restart-button" onclick="restartTest()">もう一度挑戦</button>
+            </div>
         </div>
     </div>
     

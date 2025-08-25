@@ -12,6 +12,7 @@ let questionStartTime = null;
 let testResults = [];
 let isPractice = true;
 let currentData = [];
+let participantName = ''; // 受験者名を保存
 
 // ページ読み込み時にCSVファイルを読み込む
 document.addEventListener('DOMContentLoaded', async function() {
@@ -20,10 +21,52 @@ document.addEventListener('DOMContentLoaded', async function() {
         await loadCSVData();
         document.getElementById('loadingScreen').style.display = 'none';
         document.getElementById('startScreen').style.display = 'block';
+        
+        // 名前入力欄のイベントリスナーを追加
+        setupNameInputListeners();
     } catch (error) {
         showError('データの読み込みに失敗しました: ' + error.message);
     }
 });
+
+// 名前入力欄のイベントリスナー設定
+function setupNameInputListeners() {
+    const nameInput = document.getElementById('participantName');
+    if (nameInput) {
+        // Enterキーで開始
+        nameInput.addEventListener('keypress', function(event) {
+            if (event.key === 'Enter') {
+                startPractice();
+            }
+        });
+        
+        // 入力時にエラーをクリア
+        nameInput.addEventListener('input', function() {
+            if (this.value.trim() !== '') {
+                document.getElementById('nameError').style.display = 'none';
+                this.style.borderColor = '#4CAF50';
+            }
+        });
+    }
+}
+
+// 名前入力の検証
+function validateName() {
+    const nameInput = document.getElementById('participantName');
+    const nameError = document.getElementById('nameError');
+    const name = nameInput.value.trim();
+    
+    if (name === '') {
+        nameError.style.display = 'block';
+        nameInput.style.borderColor = '#d32f2f';
+        return false;
+    } else {
+        nameError.style.display = 'none';
+        nameInput.style.borderColor = '#4CAF50';
+        participantName = name;
+        return true;
+    }
+}
 
 // CSVファイルの読み込み
 async function loadCSVData() {
@@ -161,8 +204,18 @@ function showError(message) {
 
 // 練習開始
 function startPractice() {
+    // 名前の検証
+    if (!validateName()) {
+        return;
+    }
+    
     document.getElementById('startScreen').style.display = 'none';
     document.getElementById('testScreen').style.display = 'block';
+    
+    // 名前を表示
+    if (document.getElementById('testParticipantName')) {
+        document.getElementById('testParticipantName').textContent = participantName;
+    }
     
     isPractice = true;
     currentData = practiceData;
@@ -177,6 +230,11 @@ function startPractice() {
 function startMainTest() {
     document.getElementById('practiceCompleteScreen').style.display = 'none';
     document.getElementById('testScreen').style.display = 'block';
+    
+    // 名前を表示
+    if (document.getElementById('testParticipantName')) {
+        document.getElementById('testParticipantName').textContent = participantName;
+    }
     
     isPractice = false;
     currentData = testData;
@@ -351,6 +409,11 @@ function showPracticeComplete() {
     document.getElementById('practiceCompleteScreen').style.display = 'block';
     document.getElementById('practiceScore').textContent = practiceScore;
     
+    // 名前を表示
+    if (document.getElementById('practiceParticipantName')) {
+        document.getElementById('practiceParticipantName').textContent = participantName;
+    }
+    
     // 音声を停止
     if (currentAudio) {
         currentAudio.pause();
@@ -366,11 +429,30 @@ function showResults() {
     const totalTime = new Date() - testStartTime;
     const percentage = Math.round((score / testData.length) * 100);
     
+    // 名前を表示
+    if (document.getElementById('resultParticipantName')) {
+        document.getElementById('resultParticipantName').textContent = participantName;
+    }
+    
+    // テスト日時を表示
+    const now = new Date();
+    const dateTimeString = now.toLocaleString('ja-JP', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit'
+    });
+    if (document.getElementById('testDateTime')) {
+        document.getElementById('testDateTime').textContent = dateTimeString;
+    }
+    
     document.getElementById('finalScore').textContent = `${score} / ${testData.length}`;
     document.getElementById('percentage').textContent = percentage;
     
     // 結果をコンソールに出力（デバッグ用）
     console.log('テスト結果:', {
+        participantName: participantName,
         score: score,
         totalQuestions: testData.length,
         percentage: percentage,
@@ -384,8 +466,11 @@ function showResults() {
 
 // 結果の保存
 function saveResults() {
+    const now = new Date();
     const resultData = {
-        date: new Date().toISOString(),
+        participantName: participantName,  // 名前を追加
+        date: now.toISOString(),
+        dateString: now.toLocaleString('ja-JP'),
         score: score,
         totalQuestions: testData.length,
         percentage: Math.round((score / testData.length) * 100),
@@ -396,12 +481,86 @@ function saveResults() {
     let allResults = JSON.parse(localStorage.getItem('listeningTestResults') || '[]');
     allResults.push(resultData);
     
-    // 最新の10件のみ保存
-    if (allResults.length > 10) {
-        allResults = allResults.slice(-10);
+    // 最新の20件のみ保存（名前付きなので少し多めに保存）
+    if (allResults.length > 20) {
+        allResults = allResults.slice(-20);
     }
     
     localStorage.setItem('listeningTestResults', JSON.stringify(allResults));
+    
+    // CSVダウンロード用のデータも生成
+    generateCSVData(resultData);
+    
+    // 過去の結果を表示（デバッグ用）
+    console.log(`保存済みの結果: ${allResults.length}件`);
+    console.log('最新の結果:', resultData);
+}
+
+// CSVデータの生成（ダウンロード機能付き）
+function generateCSVData(resultData) {
+    // 基本情報のCSV
+    const summaryCSV = [
+        ['受験者名', '日時', '正答数', '総問題数', '正答率(%)'],
+        [
+            resultData.participantName,
+            resultData.dateString,
+            resultData.score,
+            resultData.totalQuestions,
+            resultData.percentage
+        ]
+    ];
+    
+    // 詳細結果のCSV
+    const detailsCSV = [
+        ['問題番号', '英単語', '選択した答え', '正解', '正誤', '回答時間(秒)']
+    ];
+    
+    resultData.details.forEach(detail => {
+        detailsCSV.push([
+            detail.questionNumber,
+            detail.targetWord,
+            detail.selectedAnswer,
+            detail.correctAnswer,
+            detail.isCorrect ? '○' : '×',
+            Math.round(detail.responseTime / 1000)
+        ]);
+    });
+    
+    // コンソールにCSVデータを出力
+    console.log('=== CSV形式の結果（概要）===');
+    console.log(summaryCSV.map(row => row.join(',')).join('\n'));
+    console.log('=== CSV形式の結果（詳細）===');
+    console.log(detailsCSV.map(row => row.join(',')).join('\n'));
+}
+
+// CSVダウンロード関数（オプション機能）
+function downloadCSV() {
+    const allResults = JSON.parse(localStorage.getItem('listeningTestResults') || '[]');
+    if (allResults.length === 0) {
+        alert('保存されたデータがありません');
+        return;
+    }
+    
+    // 最新の結果を取得
+    const latestResult = allResults[allResults.length - 1];
+    
+    // CSVデータを作成
+    let csvContent = '\uFEFF'; // BOM for UTF-8
+    csvContent += '受験者名,日時,正答数,総問題数,正答率(%)\n';
+    csvContent += `${latestResult.participantName},${latestResult.dateString},${latestResult.score},${latestResult.totalQuestions},${latestResult.percentage}\n`;
+    
+    // Blobを作成してダウンロード
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    
+    link.setAttribute('href', url);
+    link.setAttribute('download', `listening_test_result_${latestResult.participantName}_${new Date().getTime()}.csv`);
+    link.style.visibility = 'hidden';
+    
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
 }
 
 // テストの再開（最初から）
@@ -413,6 +572,19 @@ function restartTest() {
     selectedAnswer = null;
     audioPlayed = false;
     isPractice = true;
+    participantName = '';  // 名前もリセット
+    
+    // 名前入力欄をクリア
+    const nameInput = document.getElementById('participantName');
+    if (nameInput) {
+        nameInput.value = '';
+        nameInput.style.borderColor = '#ddd';
+    }
+    
+    const nameError = document.getElementById('nameError');
+    if (nameError) {
+        nameError.style.display = 'none';
+    }
     
     if (currentAudio) {
         currentAudio.pause();
@@ -447,3 +619,12 @@ document.addEventListener('keydown', function(event) {
         nextQuestion();
     }
 });
+
+// 結果履歴の表示（デバッグ用）
+function showResultHistory() {
+    const allResults = JSON.parse(localStorage.getItem('listeningTestResults') || '[]');
+    console.log('=== 保存されている全結果 ===');
+    allResults.forEach((result, index) => {
+        console.log(`${index + 1}. ${result.participantName} - ${result.dateString} - ${result.score}/${result.totalQuestions} (${result.percentage}%)`);
+    });
+}

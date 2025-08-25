@@ -36,6 +36,44 @@
             margin-bottom: 20px;
         }
         
+        .name-input-section {
+            background-color: #fff9e6;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+            border: 2px solid #ffc107;
+        }
+        
+        .name-input-section label {
+            display: block;
+            font-size: 16px;
+            margin-bottom: 10px;
+            font-weight: bold;
+            color: #333;
+        }
+        
+        .name-input {
+            width: 100%;
+            max-width: 300px;
+            padding: 10px;
+            font-size: 16px;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            box-sizing: border-box;
+        }
+        
+        .name-input:focus {
+            outline: none;
+            border-color: #4CAF50;
+        }
+        
+        .name-error {
+            color: #d32f2f;
+            font-size: 14px;
+            margin-top: 5px;
+            display: none;
+        }
+        
         .instructions {
             text-align: left;
             background-color: #f0f8ff;
@@ -66,6 +104,11 @@
             background-color: #45a049;
         }
         
+        .start-button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+        
         .test-screen {
             display: none;
         }
@@ -75,6 +118,13 @@
             margin-bottom: 20px;
             font-size: 18px;
             color: #666;
+        }
+        
+        .participant-info {
+            text-align: center;
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 10px;
         }
         
         .audio-control {
@@ -173,6 +223,16 @@
             color: #333;
         }
         
+        .participant-result {
+            font-size: 20px;
+            color: #555;
+            margin: 15px 0;
+        }
+        
+        .participant-result strong {
+            color: #2196F3;
+        }
+        
         .score {
             font-size: 48px;
             color: #4CAF50;
@@ -217,7 +277,6 @@
         }
         
         .practice-complete-screen {
-            display: none;
             text-align: center;
             padding: 40px;
         }
@@ -254,43 +313,23 @@
             margin-bottom: 10px;
             font-style: italic;
         }
-        
-        .loading-screen {
-            display: none;
-            text-align: center;
-            padding: 60px;
-        }
-        
-        .spinner {
-            border: 4px solid #f3f3f3;
-            border-top: 4px solid #3498db;
-            border-radius: 50%;
-            width: 50px;
-            height: 50px;
-            animation: spin 1s linear infinite;
-            margin: 20px auto;
-        }
-        
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>英単語リスニングテスト</h1>
         
-        <!-- ローディング画面 -->
-        <div class="loading-screen" id="loadingScreen">
-            <h2>データを読み込んでいます...</h2>
-            <div class="spinner"></div>
-            <p>しばらくお待ちください</p>
-        </div>
-        
         <!-- スタート画面 -->
-        <div class="start-screen" id="startScreen" style="display: none;">
-            <h2>英単語リスニングテスト：手順の説明</h2>
+        <div class="start-screen" id="startScreen">
+            <h2>英単語リスニングテスト</h2>
+            
+            <!-- 名前入力セクション -->
+            <div class="name-input-section">
+                <label for="participantName">受験者IDを入力してください</label>
+                <input type="text" id="participantName" class="name-input" placeholder="例: 山田太郎" />
+                <div class="name-error" id="nameError">お名前を入力してください</div>
+            </div>
+            
             <div class="instructions">
                 <h3>テストの流れ</h3>
                 <ul>
@@ -305,8 +344,11 @@
         </div>
         
         <!-- 練習終了画面 -->
-        <div class="practice-complete-screen" id="practiceCompleteScreen">
+        <div class="practice-complete-screen" id="practiceCompleteScreen" style="display: none;">
             <h2>練習問題が終了しました</h2>
+            <div class="participant-info">
+                受験者: <strong id="practiceParticipantName"></strong>
+            </div>
             <div class="practice-result">
                 <p>練習問題の結果: <span id="practiceScore">0</span> / 3 問正解</p>
                 <p>操作方法は理解できましたか？</p>
@@ -324,6 +366,9 @@
         
         <!-- テスト画面 -->
         <div class="test-screen" id="testScreen">
+            <div class="participant-info">
+                受験者: <strong id="testParticipantName"></strong>
+            </div>
             <div class="question-type-indicator" id="questionType">練習問題</div>
             <div class="progress" id="progress">問題 1 / 3</div>
             
@@ -347,22 +392,19 @@
         <!-- 結果画面 -->
         <div class="result-screen" id="resultScreen">
             <h2>テスト終了！</h2>
-            <p>お疲れ様でした。</p>
+            <div class="participant-result">
+                <strong id="resultParticipantName"></strong> さん、お疲れ様でした。
+            </div>
             <div class="score" id="finalScore">0 / 80</div>
             <p>正答率: <span id="percentage">0</span>%</p>
+            <p style="font-size: 14px; color: #666;">
+                テスト日時: <span id="testDateTime"></span>
+            </p>
             <button class="restart-button" onclick="restartTest()">もう一度挑戦</button>
-        </div>
-        
-        <!-- エラー画面 -->
-        <div class="error-message" id="errorMessage" style="display: none;">
-            <h2>エラーが発生しました</h2>
-            <p id="errorText"></p>
-            <p>ページを更新してやり直してください。</p>
         </div>
     </div>
     
     <!-- JavaScriptファイルの読み込み -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="script.js"></script>
 </body>
 </html>
